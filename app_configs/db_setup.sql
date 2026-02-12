@@ -1,8 +1,7 @@
 -- Create the database
 CREATE DATABASE eschool;
 
--- Create a user and allow connections from any IP (controlled by Security Groups)
--- Use a strong password as per requirements
+-- Create a user and allow connections from any IP
 CREATE USER 'Your_user'@'%' IDENTIFIED BY 'YourPassword';
 
 -- Grant all privileges on the new database to the user
