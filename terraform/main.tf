@@ -1,7 +1,7 @@
 # Ubuntu 22.04
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners = ["099720109477"]
+  owners      = ["099720109477"]
   filter {
     name   = "name"
     values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
@@ -74,8 +74,8 @@ resource "aws_instance" "app" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = "t3.micro"
   vpc_security_group_ids = [aws_security_group.app_sg.id]
-  key_name = aws_key_pair.deployer.key_name
-  
+  key_name               = aws_key_pair.deployer.key_name
+
   tags = {
     Name = "SoftServe-App-Server"
   }
@@ -86,7 +86,7 @@ resource "aws_instance" "db" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = "t3.micro"
   vpc_security_group_ids = [aws_security_group.db_sg.id]
-  key_name = aws_key_pair.deployer.key_name
+  key_name               = aws_key_pair.deployer.key_name
 
   tags = {
     Name = "SoftServe-DB-Server"
