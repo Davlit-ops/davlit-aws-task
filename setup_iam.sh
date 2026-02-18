@@ -1,22 +1,43 @@
 #!/bin/bash
 
-# Error handling
+# Exit on any error
 set -e
 
-# Config
+# Basic config
 USER_NAME="softserve-admin"
+KEYS_DEST="vlad_access_keys.json"
+ADMIN_POLICY="arn:aws:iam::aws:policy/AdministratorAccess"
 
-# Create an IAM user
-echo "Creating IAM user: $USER_NAME"
-aws iam create-user --user-name "$USER_NAME"
+# Quick auth check
+if [ "$#" -eq 2 ]; then
+    echo "Found credentials in arguments, setting up environment..."
+    export AWS_ACCESS_KEY_ID=$1
+    export AWS_SECRET_ACCESS_KEY=$2
+    export AWS_DEFAULT_REGION="us-east-2"
+fi
 
-# Assign administrator permissions
-echo "Attaching AdministratorAccess policy"
-aws iam attach-user-policy \
-    --user-name "$USER_NAME" \
-    --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
+# Checking if we actually have access to AWS
+if ! aws sts get-caller-identity --query "Arn" --output text > /dev/null 2>&1; then
+    echo "Whoops! No AWS identity found. Run 'aws configure' first or pass keys as arguments."
+    exit 1
+fi
 
-# Create access keys
-echo "Creating access keys"
-echo "Save the AccessKeyId and SecretAccessKey"
-aws iam create-access-key --user-name "$USER_NAME"
+# Creating the admin user
+if aws iam get-user --user-name "$USER_NAME" > /dev/null 2>&1; then
+    echo "User '$USER_NAME' is already here, skipping creation."
+else
+    echo "Creating new IAM user: $USER_NAME..."
+    aws iam create-user --user-name "$USER_NAME"
+fi
+
+# Giving the user admin powers
+echo "Attaching AdministratorAccess"
+aws iam attach-user-policy --user-name "$USER_NAME" --policy-arn "$ADMIN_POLICY"
+
+# Generating keys and dumping them to a file
+# Heads up: this creates a new key pair every time you run it!
+echo "Generating fresh access keys..."
+aws iam create-access-key --user-name "$USER_NAME" --output json > "$KEYS_DEST"
+
+echo "All set! Check '$KEYS_DEST' for your new secrets."
+echo "Don't forget to put them into your Terraform vars."
