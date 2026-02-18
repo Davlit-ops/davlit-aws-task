@@ -1,3 +1,8 @@
+# current public IP securing SSH 
+data "http" "myip" {
+  url = "http://checkip.amazonaws.com/"
+}
+
 # Ubuntu 22.04
 data "aws_ami" "ubuntu" {
   most_recent = true
@@ -8,25 +13,29 @@ data "aws_ami" "ubuntu" {
   }
 }
 
+# SSH key
 resource "aws_key_pair" "deployer" {
   key_name   = var.key_name
   public_key = file("vlad-key.pem.pub")
 }
 
+# Security Group: App Server
 resource "aws_security_group" "app_sg" {
   name        = "app-sg"
   description = "App Server Security Group"
 
-  # SSH
+  # SSH: my IP only
   ingress {
+    description = "SSH Access from My IP"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["${chomp(data.http.myip.response_body)}/32"]
   }
 
-  # Tomcat and Web
+  # Tomcat: Open to the internet
   ingress {
+    description = "Tomcat Web Interface"
     from_port   = 8080
     to_port     = 8080
     protocol    = "tcp"
@@ -41,20 +50,23 @@ resource "aws_security_group" "app_sg" {
   }
 }
 
+# Security Group: Database
 resource "aws_security_group" "db_sg" {
-  name        = "db-server-sg"
-  description = "Allow SSH and MySQL from App Server"
+  name        = "db-sg"
+  description = "MySQL restricted to App Server"
 
-  # SSH
+  # SSH: my IP only
   ingress {
+    description = "SSH Access from My IP"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["${chomp(data.http.myip.response_body)}/32"]
   }
 
-  # MySQL connection only from App Server 
+  # traffic from the App Server Security Group
   ingress {
+    description     = "MySQL from App Server"
     from_port       = 3306
     to_port         = 3306
     protocol        = "tcp"
@@ -69,26 +81,43 @@ resource "aws_security_group" "db_sg" {
   }
 }
 
-# EC2 Instance 1: App Server
+# Instance: App Server
 resource "aws_instance" "app" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = "t3.micro"
   vpc_security_group_ids = [aws_security_group.app_sg.id]
   key_name               = aws_key_pair.deployer.key_name
 
+  # Pass DB details to the app setup script for auto-configuration
+  user_data = templatefile("user_data_app.sh", {
+    db_username = var.db_username
+    db_password = var.db_password
+    db_ip       = aws_instance.db.private_ip
+  })
+
   tags = {
-    Name = "SoftServe-App-Server"
+    Name = "app-server"
   }
 }
 
-# EC2 Instance 2: DB Server
+# Instance: Database Server
 resource "aws_instance" "db" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = "t3.micro"
   vpc_security_group_ids = [aws_security_group.db_sg.id]
   key_name               = aws_key_pair.deployer.key_name
 
+  # enable Public IP for downloading MySQL packages
+  # Note: In a production environment this should be false.
+  associate_public_ip_address = true
+
+  # Inject credentials for MySQL setup
+  user_data = templatefile("user_data_db.sh", {
+    db_username = var.db_username
+    db_password = var.db_password
+  })
+
   tags = {
-    Name = "SoftServe-DB-Server"
+    Name = "db-server"
   }
 }
