@@ -2,8 +2,8 @@
 # Logging setup
 exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 
-# FIX: ADD SWAP Prevent crash
-# The build process is very resource intensive
+# fix ADD SWAP  to prevent crash
+# 
 fallocate -l 2G /swapfile
 chmod 600 /swapfile
 mkswap /swapfile
@@ -17,8 +17,7 @@ add-apt-repository ppa:openjdk-r/ppa -y
 apt-get update -y
 apt-get install -y openjdk-8-jdk maven git
 
-# FIX: FORCE JAVA 8
-# Ubuntu 22.04 may default to Java 11+, i get 'javassist NullPointerException'
+# fix FORCE JAVA 8
 update-alternatives --set java /usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java
 update-alternatives --set javac /usr/lib/jvm/java-8-openjdk-amd64/bin/javac
 
@@ -37,7 +36,7 @@ if [ -f "$PROPS_PATH" ]; then
     sed -i "s/spring.datasource.username=.*/spring.datasource.username=${db_username}/" "$PROPS_PATH"
     sed -i "s/spring.datasource.password=.*/spring.datasource.password=${db_password}/" "$PROPS_PATH"
 
-    # FIX: MySQL 8 compatibility
+    # fix MySQL 8 compatibility
     # Append 'allowPublicKeyRetrieval=true' to the connection string inside the $${DATASOURCE_URL:...} block
     sed -i 's/useSSL=false}/useSSL=false\&allowPublicKeyRetrieval=true}/' "$PROPS_PATH"
 fi
@@ -47,6 +46,11 @@ TEST_FILE=$(find /home/ubuntu/eSchool -name "ScheduleControllerIntegrationTest.j
 if [ -f "$TEST_FILE" ]; then
     sed -i 's/^/\/\//' "$TEST_FILE" 
 fi
+
+# BUILD THE APP
+cd /home/ubuntu/eSchool
+mvn clean install -DskipTests
+chown -R ubuntu:ubuntu /home/ubuntu/eSchool
 
 # 4. Create Systemd Service
 # Using the full path to Java 8 to ensure the service runs on the correct JVM.
@@ -68,4 +72,6 @@ WantedBy=multi-user.target
 EOF
 
 # Enable service to run on boot
+systemctl daemon-reload
 systemctl enable eschool.service
+systemctl start eschool.service

@@ -16,7 +16,7 @@ data "aws_ami" "ubuntu" {
 # SSH key
 resource "aws_key_pair" "deployer" {
   key_name   = var.key_name
-  public_key = file("vlad-key.pem.pub")
+  public_key = file(var.public_key_path)
 }
 
 # Security Group: App Server
